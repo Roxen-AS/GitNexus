@@ -29,6 +29,7 @@ from .proposer_sandbox import (
     baseline_gitnexus_mounts,
     build_claude_settings,
     build_sandbox_environment,
+    redact_text,
 )
 from .proposal_tools import TOOLS
 from .release_controls import REFERENCES
@@ -137,6 +138,8 @@ def _probe_servers(source: Source, client: ModelClient, parent: Path) -> None:
                         or detail.get("stdout_tail")
                         or detail.get("process_detail")
                     )
+                    if err:
+                        err = redact_text(str(err), (client.api_key,))
                     rc = detail.get("returncode")
                     subtype = detail.get("subtype")
                     state = detail.get("process_state")
@@ -149,7 +152,7 @@ def _probe_servers(source: Source, client: ModelClient, parent: Path) -> None:
                     elif err:
                         err_msg = f": {err}"
                 elif detail:
-                    err_msg = f": {detail}"
+                    err_msg = f": {redact_text(str(detail), (client.api_key,))}"
                 elif kind:
                     err_msg = f" ({kind})"
                 else:

@@ -181,6 +181,21 @@ def test_probe_servers_classifies_sandbox_error_causes(monkeypatch, tmp_path):
     with pytest.raises(evaluator.SandboxError, match=r"the CLI session failed: timeout \(timed out after 120s\)"):
         evaluator._probe_servers(source, client, tmp_path)
 
+    # API tokens and secrets in stderr_tail are redacted from preflight errors
+    monkeypatch.setattr(
+        evaluator,
+        "propose",
+        make_fake_propose(
+            ok=False,
+            error_detail={"returncode": 1, "stderr_tail": f"error using key {client.api_key} and sk-ant-secret12345"},
+        ),
+    )
+    with pytest.raises(
+        evaluator.SandboxError,
+        match=r"the CLI session failed: exit code 1 \(error using key \[REDACTED\] and \[REDACTED\]\)",
+    ):
+        evaluator._probe_servers(source, client, tmp_path)
+
     # Actual tool result count mismatch
     monkeypatch.setattr(evaluator, "propose", make_fake_propose(tool_results=[]))
     with pytest.raises(evaluator.SandboxError, match=r"not every probe tool call returned a successful tool result"):
