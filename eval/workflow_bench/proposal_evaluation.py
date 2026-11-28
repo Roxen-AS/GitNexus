@@ -122,7 +122,10 @@ def _probe_servers(source: Source, client: ModelClient, parent: Path) -> None:
             checkout_tools = {f"mcp__checkout__{name}" for name in TOOLS}
             permitted = checkout_tools | (set(GITNEXUS_READ_ONLY_TOOLS) if augmented else set())
             required = checkout_tools | ({"mcp__gitnexus__list_repos"} if augmented else set())
-            arm = "with GitNexus" if augmented else "without GitNexus"
+            # Every predicate is named, so the error says which one tripped. The old
+            # message reported only the tool-result tally, which reads "2/2 successful"
+            # even when the tally was fine and a different predicate rejected the probe.
+            problems = []
             if not result.get("ok"):
                 detail = result.get("error_detail")
                 kind = result.get("error_kind")
@@ -148,35 +151,27 @@ def _probe_servers(source: Source, client: ModelClient, parent: Path) -> None:
                 elif detail:
                     err_msg = f": {detail}"
                 elif kind:
-                    err_msg = f": {kind}"
-                raise SandboxError(f"offline CLI preflight {arm} session failed{err_msg}")
-
-            missing_tools = required - names
-            if missing_tools:
-                raise SandboxError(
-                    f"offline CLI preflight {arm} missing required tool(s): {', '.join(sorted(missing_tools))}"
-                )
-
-            unpermitted_tools = names - permitted
-            if unpermitted_tools:
-                raise SandboxError(
-                    f"offline CLI preflight {arm} declared unpermitted tool(s): {', '.join(sorted(unpermitted_tools))}"
-                )
-
+                    err_msg = f" ({kind})"
+                else:
+                    err_msg = " (unknown error)"
+                problems.append(f"the CLI session failed{err_msg}")
+            if not required <= names:
+                problems.append(f"required tools missing from the model request: {sorted(required - names)}")
+            if not names <= permitted:
+                problems.append(f"tools outside the permitted set were offered: {sorted(names - permitted)}")
             if len(outputs) != len(tools):
-                raise SandboxError(
-                    f"offline CLI preflight {arm} failed: {len(outputs)}/{len(tools)} successful tool results"
-                )
-
+                problems.append("not every probe tool call returned a successful tool result")
             if not patch.is_file():
-                raise SandboxError(f"offline CLI preflight {arm} did not produce change.patch")
-
-            if patch.read_bytes() != b"offline probe":
-                raise SandboxError(f"offline CLI preflight {arm} change.patch content mismatch")
-
+                problems.append("submit_patch did not write change.patch")
+            elif patch.read_bytes() != b"offline probe":
+                problems.append("change.patch does not hold the submitted probe patch")
             if augmented and "benchmark-target" not in str(outputs.get("toolu_mock_1", {}).get("content")):
+                problems.append("list_repos did not report the benchmark-target repository")
+            if problems:
+                arm = "with GitNexus" if augmented else "without GitNexus"
                 raise SandboxError(
-                    f"offline CLI preflight {arm} list_repos output missing expected 'benchmark-target'"
+                    f"offline CLI preflight {arm} failed: {'; '.join(problems)} "
+                    f"({len(outputs)}/{len(tools)} successful tool results)"
                 )
 
 
