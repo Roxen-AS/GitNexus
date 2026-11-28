@@ -137,12 +137,12 @@ def _probe_servers(source: Source, client: ModelClient, parent: Path) -> None:
                     rc = detail.get("returncode")
                     subtype = detail.get("subtype")
                     state = detail.get("process_state")
-                    if rc is not None and rc != 0:
-                        err_msg = f": exit code {rc} ({err})" if err else f": exit code {rc}"
+                    if state and state not in ("ok", "completed", "exited"):
+                        err_msg = f": {state} ({err})" if err else f": {state}"
                     elif subtype:
                         err_msg = f": {subtype} ({err})" if err else f": {subtype}"
-                    elif state and state not in ("ok", "completed"):
-                        err_msg = f": {state} ({err})" if err else f": {state}"
+                    elif rc is not None and rc != 0:
+                        err_msg = f": exit code {rc} ({err})" if err else f": exit code {rc}"
                     elif err:
                         err_msg = f": {err}"
                 elif detail:

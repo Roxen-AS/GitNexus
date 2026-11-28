@@ -169,13 +169,13 @@ def test_probe_servers_classifies_sandbox_error_causes(monkeypatch, tmp_path):
     with pytest.raises(evaluator.SandboxError, match=r"session failed: is_error \(invalid tool use\)"):
         evaluator._probe_servers(source, client, tmp_path)
 
-    # Process timeout prefers process_state and detail
+    # Process timeout prefers process_state and detail even with a termination return code
     monkeypatch.setattr(
         evaluator,
         "propose",
         make_fake_propose(
             ok=False,
-            error_detail={"returncode": None, "process_state": "timeout", "process_detail": "timed out after 120s"},
+            error_detail={"returncode": -15, "process_state": "timeout", "process_detail": "timed out after 120s"},
         ),
     )
     with pytest.raises(evaluator.SandboxError, match=r"session failed: timeout \(timed out after 120s\)"):
